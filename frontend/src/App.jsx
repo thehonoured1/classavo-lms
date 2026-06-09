@@ -115,25 +115,45 @@ function renderRichText(blocks) {
     }
   });
 }
+// A recursive shield to ensure every Plate block has a valid 'children' array
+const sanitizePlateJSON = (nodes) => {
+  if (!Array.isArray(nodes)) return [{ type: 'p', children: [{ text: '' }] }];
+
+  return nodes.map(node => {
+    // If it's a raw text leaf, it's structurally sound
+    if (node.text !== undefined) {
+      return node;
+    }
+    // If it's a block, it MUST have a children array. If not, we build one.
+    return {
+      ...node,
+      type: node.type || 'p',
+      children: Array.isArray(node.children) && node.children.length > 0
+        ? sanitizePlateJSON(node.children)
+        : [{ text: '' }] 
+    };
+  });
+};
 // This function safely checks if the text is JSON. Preparation for PAGE 2.
 // If it fails, it automatically converts the old plain text into a Plate-readable JSON array!
 const parseLessonContent = (rawContent) => {
-  if (!rawContent) return [];
+  if (!rawContent) return [{ type: "p", children: [{ text: "" }] }];
   
   try {
     const parsed = JSON.parse(rawContent);
     if (Array.isArray(parsed)) {
-      return parsed; // It's a new Plate JSON lesson!
+      // Run the database JSON through the sanitizer to fix missing children!
+      return sanitizePlateJSON(parsed);
     }
   } catch (e) {
-    // It failed to parse, which means it's an old plain-text lesson.
+    // If JSON.parse fails, it's just old plain text. That's fine!
   }
 
-  // Convert the old plain text into Plate's official format
+  // Convert old plain text into perfectly formatted Plate JSON
   return [
     {
       type: "p",
-      children: [{ text: rawContent }],
+      children: [{ text: String(rawContent) }],
     },
   ];
 };
@@ -310,16 +330,26 @@ function InstructorDashboard({ token }) {
   // Handle Chapter Creation
   const handleCreateChapter = (e) => {
     e.preventDefault();
-    const formattedContent = [{ type: blockType, children: [{ text: chapterContent }] }];
+    
+    // We deleted the 'formattedContent' line here. Plate handles the formatting natively now!
+
     fetch('http://127.0.0.1:8000/api/chapters/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ title: chapterTitle, visibility: true, course: selectedCourseId, content: chapterContent })
+      body: JSON.stringify({ 
+        title: chapterTitle, 
+        visibility: true, 
+        course: selectedCourseId, 
+        // --- THE FIX: Stringify the array into text here! ---
+        content: JSON.stringify(chapterContent) 
+      })
     }).then(res => {
       if (res.ok) {
         setChapterStatus(`Success! Lesson created.`);
         setChapterTitle('');
-        setChapterContent('');
+        // We might need to pass Plate's default empty state here instead of an empty string, 
+        // but try it like this first!
+        setChapterContent(''); 
       } else {
         setChapterStatus(`Error creating lesson.`);
       }

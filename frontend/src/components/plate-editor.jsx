@@ -6,15 +6,33 @@ import { BasicNodesKit } from "./basic-nodes-kit";
 import { Editor, EditorContainer } from "./ui/editor";
 
 export function PlateEditor({ initialValue, onChange, readOnly = false }) { 
+  // Failsafe 1: Ensure it ALWAYS has a valid text block, even if the database is slow
+  const safeValue = initialValue && initialValue.length > 0 
+    ? initialValue 
+    : [{ type: "p", children: [{ text: "" }] }];
+
   const editor = usePlateEditor({
     plugins: BasicNodesKit,
-    value,
+    value: safeValue, 
   });
 
   return (
-    <Plate editor={editor}>
+    <Plate 
+      editor={editor} 
+      // THE FIX: Notice the curly braces around { value }!
+      // This plucks ONLY the clean JSON array out of the massive event object.
+      onChange={({ value }) => {
+        if (onChange) {
+          onChange(value);
+        }
+      }}
+    >
       <EditorContainer>
-        <Editor variant="demo" placeholder="Type..." />
+        <Editor 
+          variant="demo" 
+          placeholder={readOnly ? "" : "Type..."} 
+          readOnly={readOnly} 
+        />
       </EditorContainer>
     </Plate>
   );
